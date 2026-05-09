@@ -62,8 +62,12 @@ jobs:
           echo "📄 Original filename: $FILE_NAME"
           
           {
-            echo "download_url=$RAW_URL"
-            echo "original_name=$FILE_NAME"
+            echo "download_url<<EOF"
+            echo "$RAW_URL"
+            echo "EOF"
+            echo "original_name<<EOF"
+            echo "$FILE_NAME"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - name: ⬇️ Download file with duplicate check
         id: download
@@ -71,6 +75,24 @@ jobs:
           URL="${{ steps.get_link.outputs.download_url }}"
           ORIGINAL_NAME="${{ steps.get_link.outputs.original_name }}"
           
+          echo "Download URL is:"
+          printf '%s\n' "$URL"
+
+          if [ -z "$URL" ]; then
+            echo "❌ URL is empty"
+            exit 1
+          fi
+
+          case "$URL" in
+            http://*|https://*)
+              echo "✅ URL format looks okay"
+              ;;
+            *)
+              echo "❌ Bad URL format: $URL"
+              exit 1
+              ;;
+          esac
+
           mkdir -p downloads
           
           # Check if file already exists
