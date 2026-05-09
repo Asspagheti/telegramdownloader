@@ -30,37 +30,41 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl jq zip openssl
 
-      - name: 📡 Get direct link and fix spaces
+      - name: 📡 Get direct link
         id: get_link
         run: |
+          set -euo pipefail
+
           TELEGRAM_LINK="${{ github.event.inputs.telegram_link }}"
           
           echo "═══════════════════════════════════════════════════════════════"
-          echo "🔗 Telegram link: $TELEGRAM_LINK"
+          echo "🔗 Telegram link: $TEGRAM_LINK"
           echo "═══════════════════════════════════════════════════════════════"
           
-          RESPONSE=$(curl -s -X POST \
+          RESPONSE=$(curl --http1.1 -sS --fail -X POST \
             -H "User-Agent: Mozilla/5.0" \
-            -d "telegram_link=$TELEGRAM_LINK" \
+            --data-urlencode "telegram_link=$TELEGRAM_LINK" \
             https://telegramdownloader.net/proxy.php)
           
-          RAW_URL=$(echo "$RESPONSE" | jq -r '.data.data.link')
-          FILE_NAME=$(echo "$RESPONSE" | jq -r '.data.data.file_name')
+          echo "$RESPONSE" > response.json
+
+          RAW_URL=$(jq -r '.data.data.link // empty' response.json)
+          FILE_NAME=$(jq -r '.data.data.file_name // "downloaded_file.bin"' response.json)
           
-          if [ -z "$RAW_URL" ] || [ "$RAW_URL" = "null" ]; then
+          if [ -z "$RAW_URL" ]; then
             echo "❌ Error: Could not get download link!"
+            echo "Response was:"
+            cat response.json
             exit 1
           fi
-          
-          # Convert spaces to dash in URL
-          CORRECTED_URL=$(echo "$RAW_URL" | sed 's/%20/-/g' | sed 's/ /-/g')
           
           echo "✅ Direct link received!"
           echo "📄 Original filename: $FILE_NAME"
           
-          echo "download_url=$CORRECTED_URL" >> $GITHUB_OUTPUT
-          echo "original_name=$FILE_NAME" >> $GITHUB_OUTPUT
-
+          {
+            echo "download_url=$RAW_URL"
+            echo "original_name=$FILE_NAME"
+          } >> "$GITHUB_OUTPUT"
       - name: ⬇️ Download file with duplicate check
         id: download
         run: |
@@ -95,10 +99,12 @@ jobs:
           echo "⬇️ Downloading: $FINAL_NAME"
           echo "═══════════════════════════════════════════════════════════════"
           
-          curl -L --progress-bar \
+          curl --http1.1 -L --fail --show-error --progress-bar \
+            --connect-timeout 60 \
             --max-time 7200 \
             --retry 10 \
             --retry-delay 10 \
+            --retry-all-errors \
             -C - \
             -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
             -H "Referer: https://telegramdownloader.net/" \
@@ -171,7 +177,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+          git config --global http.version HTTP/1.1
+
           if [ ! -d "downloads" ] || [ -z "$(ls -A downloads 2>/dev/null)" ]; then
             echo "⚠️ No files to upload!"
             exit 1
