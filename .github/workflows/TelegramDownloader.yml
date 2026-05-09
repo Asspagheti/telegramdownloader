@@ -38,7 +38,7 @@ jobs:
           TELEGRAM_LINK="${{ github.event.inputs.telegram_link }}"
           
           echo "═══════════════════════════════════════════════════════════════"
-          echo "🔗 Telegram link: $TEGRAM_LINK"
+          echo "🔗 Telegram link: $TELEGRAM_LINK"
           echo "═══════════════════════════════════════════════════════════════"
           
           RESPONSE=$(curl --http1.1 -sS --fail -X POST \
